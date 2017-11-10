@@ -9,6 +9,17 @@ CSN - 53
 IRQ - Unused
 **/
 
+/*Remote connections - UNO/ATmega328p
+ * GND - Ground 
+ * VCC - 3.3V
+ * CE - 9
+ * CSN - 10
+ * MOSI - 11
+ * MISO - 12
+ * SCK - 13
+ * IRQ - Unused 
+ */
+
 /*Message format 
  * message[0] - message ID
  * message[1] - ID of the sender
@@ -24,7 +35,19 @@ IRQ - Unused
  * 255 - Uninitialized lightswitch
  */
 
-
+/*Data decoder
+ * 00s - Requests
+ *  0 - Are you active? Sent from Hub to Lightswitch
+ *  2 - Request ID. Sent from Lightswitch to Hub during initialization
+ * 10s - Commands
+ *  10 - Turn off
+ *  11 - Turn on
+ * 20s - Current state
+ *  20 - Currently off 
+ *  21 - Currently on 
+ *  22 - Uninitialized 
+ * 30s - 250s Unused 
+ */
 
 //Libraries included 
 #include  <SPI.h>
@@ -35,6 +58,7 @@ IRQ - Unused
 
 //Initialize radio connection
 RF24 radio(49, 53); //CE,CSN Pins
+//RF24 radio(9, 10); //CE, CSN Pins
 
 //Variables
 uint64_t pipe = 0xF0F0F0F0E1LL;
@@ -67,11 +91,11 @@ Lightswitch::Lightswitch(){
 }
 
 void setup() {
-  Serial.begin(9600);
-  radio.begin();
-  radio.setAutoAck(false);
-  radio.openReadingPipe(1, pipe);
-  radio.startListening();
+  Serial.begin(9600);             //start the serial port for debugging at 9600 bits per second 
+  radio.begin();                  //start up the radio chip 
+  radio.setAutoAck(false);        //Turn off built in Auto Acknowleding 
+  radio.openReadingPipe(1, pipe); //Tune to correct channel 
+  radio.startListening();         //start listening to message broadcasts 
 }
 
 void loop() {
@@ -94,12 +118,10 @@ void loop() {
 }
 
 void sendMessage(){
-  radio.stopListening();
-  radio.openWritingPipe(pipe);
-
-  radio.write(message, 5);
-  
-  radio.openReadingPipe(1, pipe);
-  radio.startListening();
+  radio.stopListening();          //stop listening so a message can be sent 
+  radio.openWritingPipe(pipe);    //set to send mode on the correct channel
+  radio.write(message, 5);        //Send all 5 bytes of the message
+  radio.openReadingPipe(1, pipe); //Tune back recieve mode on correct channel
+  radio.startListening();         //start listening to message broadcasts
 }
 
