@@ -19,6 +19,8 @@ IRQ - Unused
 //Defines
 #define RELAY 6
 #define BUTTON 7
+#define isOFF 20
+#define isON 21
 
 //Initialize radio connection
 RF24 radio(9, 10); //CE,CSN Pins
@@ -68,7 +70,7 @@ void setup() {
 
 void loop() {
 
-  if (radio.available()){
+  if (radio.available()){   //If there is an incoming transmission
     radio.read(message, 5); //Read 5 bytes and place into message array
 
     //Debugging portion
@@ -80,19 +82,28 @@ void loop() {
     Serial.println(message[4]);
   }
 
-  if (digitalRead(BUTTON) == HIGH){
-      while (digitalRead(BUTTON) == HIGH){}
-      if (on == true){
-        on = false;
-      } else {
-        on = true;
-      }
+  if (digitalRead(BUTTON) == HIGH){           //Freeze up the code while button is pressed 
+      while (digitalRead(BUTTON) == HIGH){}   //So the switch doesnt continuously toggle 
+      toggle();     //Toggle the relay
   }
 
+  //Output proper signal to relay
   if (on == true){
      digitalWrite(RELAY, HIGH);
   } else {
     digitalWrite(RELAY, LOW);
   }
 
+}
+
+void toggle(){
+  if(on == true){
+      on = false;
+      ls.setCurrentState(isOFF);
+      sendMessage(0, isOFF);
+  } else {
+    on = true;
+    ls.setCurrentState(isOFF);
+    sendMessage(0, isON);
+  }
 }
