@@ -13,7 +13,7 @@ IRQ - Unused
   message[0] - Message ID
   message[1] - ID of Sender
   message[2] - ID of Reciever
-  message[3] - Unused/Reserved for future use
+  message[3] - Extra Information
   message[4] - Data
 */
 
@@ -101,9 +101,6 @@ void setup() {
   radio.setAutoAck(false);            //Turn off built in Auto Acknowledging 
   radio.openReadingPipe(1, pipe);     //Tune to correct channel
   radio.startListening();             //Start listening to message broadcasts 
-
-  message[1] = ls.getID();
-  message[3] = 0;
 }
 
 void loop() {
@@ -174,7 +171,9 @@ void sendMessage(byte TO, byte DATA){
   radio.stopListening();              //Stop listening so a message can be sent 
   radio.openWritingPipe(pipe);        //Set to send mode on the correct channel
   message[0] = messageID;
+  message[1] = ls.getID();
   message[2] = TO;
+  message[3] = 0;
   message[4] = DATA;
   radio.write(message, 5);            //Send all 5 bytes of the message
   radio.openReadingPipe(1, pipe);     //Tune back recieve mode on correct channel
