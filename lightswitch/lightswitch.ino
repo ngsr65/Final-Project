@@ -89,6 +89,7 @@ bool on = false;
 const uint64_t pipe = 0xF0F0F0F0E1LL;
 byte message[5];
 byte messageID;
+byte i;
 Lightswitch ls;
 
 
@@ -109,12 +110,28 @@ void loop() {
     radio.read(message, 5); //Read 5 bytes and place into message array
 
     //Debugging portion
+    Serial.println("");
     Serial.println("Message Recieved!");
-    Serial.print(message[0]);
-    Serial.print(message[1]);
-    Serial.print(message[2]);
-    Serial.print(message[3]);
-    Serial.println(message[4]);
+    Serial.print("ID: ");
+    Serial.print(message[0] / 100);
+    Serial.print((message[0] / 10) % 10);
+    Serial.print(message[0] % 10);
+    Serial.print(" FROM: ");
+    Serial.print(message[1] / 100);
+    Serial.print((message[1] / 10) % 10);
+    Serial.print(message[1] % 10);
+    Serial.print(" TO: ");
+    Serial.print(message[2] / 100);
+    Serial.print((message[2] / 10) % 10);
+    Serial.print(message[2] % 10);
+    Serial.print(" EXTRA DATA: ");
+    Serial.print(message[3] / 100);
+    Serial.print((message[3] / 10) % 10);
+    Serial.print(message[3] % 10);
+    Serial.print(" MESSAGE: ");
+    Serial.print(message[4] / 100);
+    Serial.print((message[4] / 10) % 10);
+    Serial.print(message[4] % 10);
 
     //Get the current message ID and store it
     messageID = message[0];
