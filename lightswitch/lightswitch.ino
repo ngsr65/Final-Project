@@ -32,6 +32,7 @@ IRQ - Unused
   10s - Commands
     10 - Turn off
     11 - Turn on
+    12 - Toggle
   20s - Current state
     20 - Currently off
     21 - Currently on
@@ -51,6 +52,7 @@ IRQ - Unused
 #define BUTTON 7
 #define OFF 10
 #define ON 11
+#define TOGGLE 12
 #define isOFF 20
 #define isON 21
 
@@ -116,6 +118,23 @@ void loop() {
     Serial.print(message[2]);
     Serial.print(message[3]);
     Serial.println(message[4]);
+    
+    //Recieved command
+    if (message[1] == 0 && message[2] == ls.getID()){ //If the message was from the hub
+      if (message[4] == ON){                          //and directed to this lightswitch
+        on = true;                                    //Turn light on
+        ls.setCurrentState(isON);
+        sendMessage(0, isON);
+      }
+      if (message[4] == OFF){
+        on = false;                                   //Turn light off
+        ls.setCurrentState(isOFF);
+        sendMessage(0, isOFF);
+      }
+      if (message[4] == TOGGLE){
+        toggle();                                     //Toggle light
+      }
+    }
   }
 
   if (digitalRead(BUTTON) == HIGH){           //Freeze up the code while button is pressed 
@@ -134,9 +153,9 @@ void loop() {
 
 void toggle(){
   if(on == true){
-      on = false;
-      ls.setCurrentState(isOFF);
-      sendMessage(0, isOFF);
+    on = false;
+    ls.setCurrentState(isOFF);
+    sendMessage(0, isOFF);
   } else {
     on = true;
     ls.setCurrentState(isOFF);
