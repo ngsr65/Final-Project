@@ -79,7 +79,7 @@ class Lightswitch{
 
 //Lightswitch constructor
 Lightswitch::Lightswitch(){
-  ID = 255;                 //Using reserved ID of 255 to show it has not been initialized 
+  ID = 255;                //Using reserved ID of 255 to show it has not been initialized 
   currentState = 22;       //Unitialized   
   lightswitchName = "";
 }
@@ -118,6 +118,9 @@ void loop() {
     Serial.print(message[2]);
     Serial.print(message[3]);
     Serial.println(message[4]);
+
+    //Get the current message ID and store it
+    messageID = message[0];
     
     //Recieved command
     if (message[1] == 0 && message[2] == ls.getID()){ //If the message was from the hub
@@ -133,6 +136,9 @@ void loop() {
       }
       if (message[4] == TOGGLE){
         toggle();                                     //Toggle light
+      }
+      if (message[4] == 0){                           //Request from hub to see if lightswitch active
+        sendMessage(0, 1);                            //Respond yes
       }
     }
   }
@@ -164,6 +170,7 @@ void toggle(){
 }
 
 void sendMessage(byte TO, byte DATA){
+  messageID++;                        //Increment the messageID before sending new message
   radio.stopListening();              //Stop listening so a message can be sent 
   radio.openWritingPipe(pipe);        //Set to send mode on the correct channel
   message[0] = messageID;
