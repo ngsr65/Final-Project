@@ -59,6 +59,10 @@ IRQ - Unused
 //Initialize radio connection
 RF24 radio(9, 10); //CE,CSN Pins
 
+//function definitions
+void sendMessage(byte TO, byte DATA);     //fucntion to send a message 
+void toggle();                            //function that will toggle a lightswitch object
+
 //Lightswitch class 
 class Lightswitch{
   private:
@@ -75,6 +79,7 @@ class Lightswitch{
     byte getCurrentState(){return currentState;}
     void setID(byte id){ID = id;}
     void setCurrentState(byte state){currentState = state;}
+    bool initialize();
 };
 
 //Lightswitch constructor
@@ -82,6 +87,16 @@ Lightswitch::Lightswitch(){
   ID = 255;                //Using reserved ID of 255 to show it has not been initialized 
   currentState = 22;       //Unitialized   
   lightswitchName = "";
+}
+
+bool Lightswitch::initialize(){
+     byte initialMsg[5];              //to hold message from the hub 
+     sendMessage(0, 2);    //send message, 0 sends to the hub and 2 requests a lightswitch number 
+     if (radio.available()){          //If there is an incoming transmission
+        radio.read(initialMsg, 5);    //Read 5 bytes and place into message array
+        ID = initialMsg[4];            //store ID number in the correct component 
+     }
+    return true;                      //return true to let the program know it was initialized sucessfully 
 }
 
 //Varaibles
@@ -102,9 +117,25 @@ void setup() {
   radio.setAutoAck(false);            //Turn off built in Auto Acknowledging 
   radio.openReadingPipe(1, pipe);     //Tune to correct channel
   radio.startListening();             //Start listening to message broadcasts 
-}
 
-void loop() {
+unsigned long pressTime;              //variable to hold the time that the button was first pressed 
+unsigned long holdTime; 
+bool isInitial = false;               //boolean to hold the initialization state of the switch 
+
+  while(!isInitial){                    //if the lightswitch is not initialized enter this while loop 
+    while(!digitalRead(BUTTON)){}         //while loop to wait until the button is pressed 
+      if(digitalRead(BUTTON) == HIGH){
+        pressTime = millis();            //get the current time when the button is pressed 
+        while(digitalRead(BUTTON)){}     //while loop for duration of the pressed button 
+        holdTime = millis() - pressTime; //set the time that the button was pressed for
+        if(holdTime > 3000){
+             isInitial = ls.initialize();              
+        }
+      }
+  }
+
+}
+void loop() {   
 
   if (radio.available()){   //If there is an incoming transmission
     radio.read(message, 5); //Read 5 bytes and place into message array

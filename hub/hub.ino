@@ -76,6 +76,10 @@ using namespace std;
 RF24 radio(49, 53); //CE,CSN Pins
 //RF24 radio(9, 10); //CE, CSN Pins
 
+//function definitions 
+void sendMessage(byte TO, byte DATA);
+
+
 //Lightswitch class 
 class Lightswitch{
   private:
@@ -86,7 +90,7 @@ class Lightswitch{
   public:
   //Constructors and Destructors 
   Lightswitch();                  //default constructor 
-
+  Lightswitch(byte nID);               //constructor that will initialize with a certain ID number 
   //Methods 
   byte getID(){return ID;}
   byte getCurrentState(){return currentState;}
@@ -101,6 +105,28 @@ Lightswitch::Lightswitch(){
   lightswitchName = "";
 }
 
+Lightswitch::Lightswitch(byte nID){
+  ID = nID;                 //sets to the given ID
+  currentState = 20;        //sets the state to off 
+  lightswitchName = "";    
+}
+
+//Stack class to hold a stack of lightswitches
+class lightStack{
+    private:
+      vector <Lightswitch> stack;     //vector to point to all the lightswitches 
+      byte sLength;                   //byte to hold the number of lightswitches
+      
+    public:
+      //constructors and destructors 
+      lightStack(byte nLength = 0){sLength = nLength;}
+      //methods
+      void push(Lightswitch l){};       //function to push a new lightswitch to the stack 
+ //     void pop();                     //function to delete the most recent a lightswitch object from the stack 
+      byte getNextid(){};               //function that will return the next ID number to be used for a new lightswitch we are adding to the stack
+};
+
+
 //Variables
 uint64_t pipe = 0xF0F0F0F0E1LL;
 byte message[5];
@@ -109,7 +135,8 @@ byte messageID = 0;
 byte i;
 String typedmessage = "";
 char letter;
-vector<Lightswitch> lsVector;
+//vector<Lightswitch> lsVector;
+lightStack Lstack;
 
 void setup() {
   Serial.begin(9600);               //start the serial port for debugging at 9600 bits per second 
@@ -242,6 +269,16 @@ void loop() {
         Serial.print("Lightswitch ID: ");
         Serial.print(message[1]);
         Serial.println(" is now off");
+      }
+      if(message[4] == 2){         //if the lightsweitch is requesting a new ID number 
+          Lightswitch newL(Lstack.getNextid());     //create new lightswitch object 
+          Lstack.push(newL);                        //and push it to the stack
+          sendMessage(255, newL.getID());             //send hub the new lightswitch number 
+          if(radio.available()){                    //if trhere is an incoming transmission
+            radio.read(message, 5);                 //read 5 bytes into message variable
+          }
+          if(message[4] == 1){                       //if 1 is recieved from the switch the light is active and ready to be used                      
+          }         //then the light switch is on and working properly 
       }
     }
     
