@@ -40,6 +40,7 @@ IRQ - Unused
     0 - Are you active? Sent from Hub to Lightswitch
     1 - Yes. Sent from Lightswitch to Hub
     2 - Request ID. Sent from Lightswitch to Hub during initialization
+    3 - Request current state
   10s - Commands
     10 - Turn off
     11 - Turn on
@@ -48,6 +49,7 @@ IRQ - Unused
     20 - Currently off 
     21 - Currently on 
     22 - Uninitialized 
+    23 - Disconnected
   30s - 250s Unused 
 */
 
@@ -73,6 +75,7 @@ using namespace std;
 #define TOGGLE 12
 #define isOFF 20
 #define isON 21
+#define DISCONNECTED 23
 
 //Initialize radio connection
 RF24 radio(49, 53); //CE,CSN Pins
@@ -120,12 +123,13 @@ class lightStack{
       byte sLength;                   //byte to hold the number of lightswitches
       
     public:
-      //constructors and destructors 
+      //Constructor
       lightStack(byte nLength = 0){sLength = nLength;}
       //methods
       void push(Lightswitch l);       //function to push a new lightswitch to the stack 
 //     void pop();                     //function to delete the most recent a lightswitch object from the stack 
       byte getNextid();               //function that will return the next ID number to be used for a new lightswitch we are adding to the stack
+      void changeState(byte lightSwitch, byte state);
 };
 
 void lightStack::push(Lightswitch l){
@@ -137,8 +141,17 @@ byte lightStack::getNextid(){
   return stack.size() + 1;            //this should be the if number of the next light 
 }
 
+void lightStack::changeState(byte lightSwitch, byte state){
+  stack[lightSwitch].setCurrentState(state);
+}
+
 //Variables
 uint64_t pipe = 0xF0F0F0F0E1LL;
+unsigned long sentTime;
+bool timeOutCheck = false;
+byte timeOutTries = 0;
+byte timeOutMessage;
+byte timeOutTo;
 byte message[5];
 byte messagebuffer[3];
 byte messageID = 0;
@@ -230,10 +243,15 @@ void loop() {
       if (i == 1){
         message[2] = messagebuffer[0];
       }
-
-      Serial.println();
-      Serial.println("Sending Message...");      
+      
+      Serial.println(); 
+      Serial.println("Sending Message...");   
+      timeOutTo = message[2];
+      timeOutMessage = message[4];        
       sendMessage(message[2], message[4]);
+      sentTime = millis();
+      timeOutCheck = true;
+      timeOutTries = 0;
     }
 
   }
@@ -241,62 +259,103 @@ void loop() {
   if (radio.available()){   //If there is an incoming transmission
     radio.read(message, 5); //Read 5 bytes and place into message array
 
-    Serial.println("");
-    Serial.println("Message Recieved!");
-    Serial.print("ID: ");
-    Serial.print(message[0] / 100);
-    Serial.print((message[0] / 10) % 10);
-    Serial.print(message[0] % 10);
-    Serial.print(" FROM: ");
-    Serial.print(message[1] / 100);
-    Serial.print((message[1] / 10) % 10);
-    Serial.print(message[1] % 10);
-    Serial.print(" TO: ");
-    Serial.print(message[2] / 100);
-    Serial.print((message[2] / 10) % 10);
-    Serial.print(message[2] % 10);
-    Serial.print(" EXTRA DATA: ");
-    Serial.print(message[3] / 100);
-    Serial.print((message[3] / 10) % 10);
-    Serial.print(message[3] % 10);
-    Serial.print(" MESSAGE: ");
-    Serial.print(message[4] / 100);
-    Serial.print((message[4] / 10) % 10);
-    Serial.print(message[4] % 10);
+    if (lastMsg == message[0]){
+      //Ignore the bounced message
+    } else {
+      lastMsg = message[0];
 
-    //Get the current message ID and store it
-    messageID = message[0];
+      Serial.println("");
+      Serial.println("Message Recieved!");
+      Serial.print("ID: ");
+      Serial.print(message[0] / 100);
+      Serial.print((message[0] / 10) % 10);
+      Serial.print(message[0] % 10);
+      Serial.print(" FROM: ");
+      Serial.print(message[1] / 100);
+      Serial.print((message[1] / 10) % 10);
+      Serial.print(message[1] % 10);
+      Serial.print(" TO: ");
+      Serial.print(message[2] / 100);
+      Serial.print((message[2] / 10) % 10);
+      Serial.print(message[2] % 10);
+      Serial.print(" EXTRA DATA: ");
+      Serial.print(message[3] / 100);
+      Serial.print((message[3] / 10) % 10);
+      Serial.print(message[3] % 10);
+      Serial.print(" MESSAGE: ");
+      Serial.print(message[4] / 100);
+      Serial.print((message[4] / 10) % 10);
+      Serial.print(message[4] % 10);
+      Serial.println();
 
-    if (message[2] == 0){ //If the message was sent to the hub
-      if (message[4] == isON){
-        Serial.println();
-        Serial.print("Lightswitch ID: ");
-        Serial.print(message[1]);
-        Serial.println(" is now on");
-      }
-      if (message[4] == isOFF){
-        Serial.println();
-        Serial.print("Lightswitch ID: ");
-        Serial.print(message[1]);
-        Serial.println(" is now off");
-      }
-      if(message[4] == NEEDID){         //if the lightswitch is requesting a new ID number 
+      //Get the current message ID and store it
+      messageID = message[0];
+
+      if (message[2] == 0){ //If the message was sent to the hub
+        if (message[4] == isON){
+          Serial.println();
+          Serial.print("Lightswitch ID: ");
+          Serial.print(message[1]);
+          Serial.println(" is now on");
+          timeOutCheck = false;
+          timeOutTries = 0;
+        }
+        if (message[4] == isOFF){
+          Serial.println();
+          Serial.print("Lightswitch ID: ");
+          Serial.print(message[1]);
+          Serial.println(" is now off");
+          timeOutCheck = false;
+          timeOutTries = 0;
+        }
+        if(message[4] == NEEDID){         //if the lightswitch is requesting a new ID number 
           Lightswitch newL(Lstack.getNextid());     //create new lightswitch object 
           Lstack.push(newL);                        //and push it to the stack
+          Serial.println();
+          Serial.print("Lightswitch ID: ");
+          Serial.print(newL.getID());
+          Serial.println(" was created!");
           sendMessage(255, newL.getID());           //send hub the new lightswitch number 
           if(radio.available()){                    //if trhere is an incoming transmission
             radio.read(message, 5);                 //read 5 bytes into message variable
           }
-          if(message[4] == 1){                       //if 1 is recieved from the switch the light is active and ready to be used                      
-          }         //then the light switch is on and working properly 
+          if(message[4] == 1){                      //if 1 is recieved from the switch the light is active and ready to be used 
+            timeOutCheck = false;                   //then the light switch is on and working properly 
+            timeOutTries = 0;                     
+          }                                   
+        }
       }
     }
+  }
+
+  //Check to make sure message was recieved by lightswitch
+  if (timeOutCheck == true){
+    if ((millis() - sentTime >= 2000)){
+      if (timeOutTries < 3){
+        Serial.print("Lightswitch ID: ");
+        Serial.print(timeOutTo);
+        Serial.print(" did not recieve the message: ");
+        Serial.print(timeOutMessage);
+        Serial.println("! Resending...");
+        timeOutTries++;
+        sendMessage(timeOutTo, timeOutMessage);
+        sentTime = millis();
+      } else {                                        //If you tried to reach the lightswitch three
+        Lstack.changeState(timeOutTo, DISCONNECTED);  //more times and it's not responding, set the
+        timeOutTries = 0;                             //lightswitch state as disconnected
+        timeOutCheck = false;
+        Serial.print("Lightswitch ID: ");
+        Serial.print(timeOutTo);
+        Serial.println(" is disconnected!");
+      }
     }
+  }
 
 }
 
 void sendMessage(byte TO, byte DATA){
   messageID++;                    //Increment the messageID before sending new message
+  lastMsg = messageID;
   radio.stopListening();          //stop listening so a message can be sent 
   radio.openWritingPipe(pipe);    //set to send mode on the correct channel
   message[0] = messageID;

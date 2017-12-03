@@ -29,6 +29,7 @@ IRQ - Unused
     0 - Are you active? Sent from Hub to Lightswitch
     1 - Yes. Sent from Lightswitch to Hub
     2 - Request ID. Sent from Lightswitch to Hub during initalization
+    3 - Request current state
   10s - Commands
     10 - Turn off
     11 - Turn on
@@ -62,8 +63,9 @@ IRQ - Unused
 RF24 radio(9, 10); //CE,CSN Pins
 
 //function definitions
-void sendMessage(byte TO, byte DATA);     //fucntion to send a message 
-void toggle();                            //function that will toggle a lightswitch object
+void sendMessage(byte TO, byte DATA);               //function to send a message 
+void bounceMessage(byte FROM, byte TO, byte DATA);  //function to bounce a message
+void toggle();                                      //function that will toggle a lightswitch object
 
 //Lightswitch class 
 class Lightswitch{
@@ -113,7 +115,6 @@ byte i;
 Lightswitch ls;
 
 
-//
 void setup() {            
   pinMode(RELAY, OUTPUT);             //Set the Relay Controller pin as an output
   pinMode(BUTTON, INPUT);             //set the Push button pin as an input
@@ -192,15 +193,20 @@ void loop() {
         toggle();                                     //Toggle light
       }
       if (message[4] == 0){                           //Request from hub to see if lightswitch active
-        sendMessage(HUB, 1);                            //Respond yes
+        sendMessage(HUB, 1);                          //Respond yes
+      }
+      if (message[4] == 3){                           //Request from hub to get current state
+        sendMessage(HUB, ls.getCurrentState());       //Respond with current state
       }
     }
     
     //mesh networking 
     if(message[2] != ls.getID()){                     //make sure that we are not supossed to be recieving the message 
-      if(lastMsg != message[0]){                    //this means the message has not been recieved yet 
-        lastMsg = message[0];                       //reset the last message ID so next time we know to ignore it 
-        sendMessage(message[1], message[4]);          //pass the message along 
+      if(lastMsg != message[0]){                      //this means the message has not been recieved yet 
+        lastMsg = message[0];                         //reset the last message ID so next time we know to ignore it 
+        Serial.println();
+        Serial.println("Bouncing message!");
+        bounceMessage(message[1], message[2], message[4]);          //pass the message along 
       }
     }
     
@@ -245,3 +251,17 @@ void sendMessage(byte TO, byte DATA){
   radio.openReadingPipe(1, pipe);     //Tune back recieve mode on correct channel
   radio.startListening();             //Start listening to message broadcasts
 }
+
+void bounceMessage(byte FROM, byte TO, byte DATA){
+  radio.stopListening();              //Stop listening so a message can be sent 
+  radio.openWritingPipe(pipe);        //Set to send mode on the correct channel
+  message[0] = messageID;
+  message[1] = FROM;
+  message[2] = TO;
+  message[3] = 0;
+  message[4] = DATA;
+  radio.write(message, 5);            //Send all 5 bytes of the message
+  radio.openReadingPipe(1, pipe);     //Tune back recieve mode on correct channel
+  radio.startListening();             //Start listening to message broadcasts
+}
+
