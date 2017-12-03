@@ -101,6 +101,8 @@ class Lightswitch{
   byte getCurrentState(){return currentState;}
   void setID(byte id){ID = id;}
   void setCurrentState(byte state){currentState = state;}
+  void setName(String newName){lightswitchName = newName;}
+  String getName(){return lightswitchName;}
 };
 
 //Lightswitch constructor 
@@ -127,9 +129,12 @@ class lightStack{
       lightStack(byte nLength = 0){sLength = nLength;}
       //methods
       void push(Lightswitch l);       //function to push a new lightswitch to the stack 
-//     void pop();                     //function to delete the most recent a lightswitch object from the stack 
       byte getNextid();               //function that will return the next ID number to be used for a new lightswitch we are adding to the stack
       void changeState(byte lightSwitch, byte state);
+      void changeName(byte ID, String newName);
+      byte getState(byte ID){return stack[ID].getCurrentState();}
+      String getName(byte ID){return stack[ID].getName();}
+      byte getLength(){return sLength;}
 };
 
 void lightStack::push(Lightswitch l){
@@ -145,6 +150,10 @@ void lightStack::changeState(byte lightSwitch, byte state){
   stack[lightSwitch].setCurrentState(state);
 }
 
+void lightStack::changeName(byte ID, String newName){
+  stack[ID].setName(newName);
+}
+
 //Variables
 uint64_t pipe = 0xF0F0F0F0E1LL;
 unsigned long sentTime;
@@ -153,7 +162,6 @@ byte timeOutTries = 0;
 byte timeOutMessage;
 byte timeOutTo;
 byte message[5];
-byte messagebuffer[3];
 byte messageID = 0;
 byte lastMsg;
 byte i;
@@ -182,76 +190,97 @@ void loop() {
       delay(10);
     }
 
-    if (typedmessage == "send" || typedmessage == "Send"){
-      messagebuffer[0] = 0;
-      messagebuffer[1] = 0;
-      messagebuffer[2] = 0;
+    if (typedmessage.equalsIgnoreCase("send")){
+      typedmessage = "";
       Serial.println();
       Serial.println("Send");
       Serial.print("Message: ");
       while (!Serial.available()){}
-
       i = 0;
       while (Serial.available() > 0 && i < 3){
         letter = Serial.read();
         Serial.print(letter);
-        messagebuffer[i] = letter - 48;
+        typedmessage.concat(letter);
         i++;
         delay(10);
-      }
-        
-      //Add message data to message array
-      if (i == 3){
-        message[4] = messagebuffer[0] * 100;
-        message[4] += messagebuffer[1] * 10;
-        message[4] += messagebuffer[2];
-      }
-      if (i == 2){
-        message[4] = messagebuffer[0] * 10;
-        message[4] += messagebuffer[1];
-      }
-      if (i == 1){
-        message[4] = messagebuffer[0];
-      }
+      }        
+      message[4] = convertStringToByte(typedmessage);
 
-      messagebuffer[0] = 0;
-      messagebuffer[1] = 0;
-      messagebuffer[2] = 0;
+      typedmessage = "";    
       Serial.println();
       Serial.print("To: ");
       while (!Serial.available()){}
-
       i = 0;
       while (Serial.available() > 0 && i < 3){
         letter = Serial.read();
         Serial.print(letter);
-        messagebuffer[i] = letter - 48;  
+        typedmessage.concat(letter);
         i++;
         delay(10);      
-      }
-        
-      //Add message data to message array
-      if (i == 3){
-        message[2] = messagebuffer[0] * 100;
-        message[2] += messagebuffer[1] * 10;
-        message[2] += messagebuffer[2];
-      }
-      if (i == 2){
-        message[2] = messagebuffer[0] * 10;
-        message[2] += messagebuffer[1];
-      }
-      if (i == 1){
-        message[2] = messagebuffer[0];
-      }
+      }        
+      message[2] = convertStringToByte(typedmessage);
       
       Serial.println(); 
       Serial.println("Sending Message...");   
-      timeOutTo = message[2];
-      timeOutMessage = message[4];        
-      sendMessage(message[2], message[4]);
-      sentTime = millis();
-      timeOutCheck = true;
-      timeOutTries = 0;
+      doTimeoutCheck();
+    }
+
+    if (typedmessage.equalsIgnoreCase("rename")){
+      byte tempID;
+      typedmessage = "";
+      Serial.println();
+      Serial.println("Rename");
+      Serial.print("ID: ");
+      while (!Serial.available()){}
+      i = 0;
+      while (Serial.available() > 0 && i < 3){
+        letter = Serial.read();
+        Serial.print(letter);
+        typedmessage.concat(letter);
+        i++;
+        delay(10);
+      }        
+      tempID = convertStringToByte(typedmessage);
+
+      typedmessage = "";    
+      Serial.println();
+      Serial.print("Name: ");
+      while (!Serial.available()){}
+      i = 0;
+      while (Serial.available() > 0){
+        letter = Serial.read();
+        Serial.print(letter);
+        typedmessage.concat(letter);
+        i++;
+        delay(10);      
+      }        
+      Lstack.changeName(tempID - 1, typedmessage);
+    }
+
+    if (typedmessage.equalsIgnoreCase("list")){
+      Serial.println();
+      Serial.print("Size - ");
+      Serial.println(Lstack.getLength());
+      for (i = 0; i < Lstack.getLength(); i++){
+        Serial.println();
+        Serial.print("ID: ");
+        Serial.print(i + 1);
+        Serial.print(", Name: ");
+        Serial.print(Lstack.getName(i));
+        Serial.print(", Current State: ");
+        if (Lstack.getState(i) == 20){
+          Serial.println("Off");
+        }
+        if (Lstack.getState(i) == 21){
+          Serial.println("On");
+        }
+        if (Lstack.getState(i) == 22){
+          Serial.println("Uninitialized");
+        }
+        if (Lstack.getState(i) == 23){
+          Serial.println("Disconnected");
+        }
+      }
     }
 
   }
@@ -297,6 +326,7 @@ void loop() {
           Serial.print("Lightswitch ID: ");
           Serial.print(message[1]);
           Serial.println(" is now on");
+          Lstack.changeState(message[1] - 1, isON);
           timeOutCheck = false;
           timeOutTries = 0;
         }
@@ -305,6 +335,7 @@ void loop() {
           Serial.print("Lightswitch ID: ");
           Serial.print(message[1]);
           Serial.println(" is now off");
+          Lstack.changeState(message[1] - 1, isOFF);
           timeOutCheck = false;
           timeOutTries = 0;
         }
@@ -340,9 +371,9 @@ void loop() {
         timeOutTries++;
         sendMessage(timeOutTo, timeOutMessage);
         sentTime = millis();
-      } else {                                        //If you tried to reach the lightswitch three
-        Lstack.changeState(timeOutTo, DISCONNECTED);  //more times and it's not responding, set the
-        timeOutTries = 0;                             //lightswitch state as disconnected
+      } else {                                            //If you tried to reach the lightswitch three
+        Lstack.changeState(timeOutTo - 1, DISCONNECTED);  //more times and it's not responding, set the
+        timeOutTries = 0;                                 //lightswitch state as disconnected
         timeOutCheck = false;
         Serial.print("Lightswitch ID: ");
         Serial.print(timeOutTo);
@@ -366,5 +397,39 @@ void sendMessage(byte TO, byte DATA){
   radio.write(message, 5);        //Send all 5 bytes of the message
   radio.openReadingPipe(1, pipe); //Tune back recieve mode on correct channel
   radio.startListening();         //start listening to message broadcasts
+}
+
+byte convertStringToByte(String temp){
+  byte messagebuffer[3] = {0};
+  byte tempLength = temp.length();
+  byte i, converted;
+
+  for (i = 0; i < tempLength; i++){
+    messagebuffer[i] = (temp[i] - 48);
+  }
+
+  if (tempLength == 3){
+    converted = messagebuffer[0] * 100;
+    converted += messagebuffer[1] * 10;
+    converted += messagebuffer[2];
+  }
+  if (tempLength == 2){
+    converted = messagebuffer[0] * 10;
+    converted += messagebuffer[1];
+  }
+  if (tempLength == 1){
+    converted = messagebuffer[0];
+  }
+
+  return converted;
+}
+
+void doTimeoutCheck(){
+  timeOutTo = message[2];
+  timeOutMessage = message[4];        
+  sendMessage(message[2], message[4]);
+  sentTime = millis();
+  timeOutCheck = true;
+  timeOutTries = 0;
 }
 
