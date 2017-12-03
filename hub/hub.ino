@@ -66,6 +66,8 @@ using namespace std;
 //Defines
 #define RELAY 6
 #define BUTTON 7
+#define HUB 0
+#define NEEDID 2
 #define OFF 10
 #define ON 11
 #define TOGGLE 12
@@ -121,21 +123,29 @@ class lightStack{
       //constructors and destructors 
       lightStack(byte nLength = 0){sLength = nLength;}
       //methods
-      void push(Lightswitch l){};       //function to push a new lightswitch to the stack 
- //     void pop();                     //function to delete the most recent a lightswitch object from the stack 
-      byte getNextid(){};               //function that will return the next ID number to be used for a new lightswitch we are adding to the stack
+      void push(Lightswitch l);       //function to push a new lightswitch to the stack 
+//     void pop();                     //function to delete the most recent a lightswitch object from the stack 
+      byte getNextid();               //function that will return the next ID number to be used for a new lightswitch we are adding to the stack
 };
 
+void lightStack::push(Lightswitch l){
+   stack.push_back(l);                //push back the vector and add the new switch 
+   sLength = stack.size();            //reset length of the vector
+}
+
+byte lightStack::getNextid(){
+  return stack.size() + 1;            //this should be the if number of the next light 
+}
 
 //Variables
 uint64_t pipe = 0xF0F0F0F0E1LL;
 byte message[5];
 byte messagebuffer[3];
 byte messageID = 0;
+byte lastMsg;
 byte i;
 String typedmessage = "";
 char letter;
-//vector<Lightswitch> lsVector;
 lightStack Lstack;
 
 void setup() {
@@ -145,7 +155,7 @@ void setup() {
   radio.openReadingPipe(1, pipe);   //Tune to correct channel 
   radio.startListening();           //start listening to message broadcasts 
 
-  message[1] = 0;                   //Hub's ID is 0
+  message[1] = HUB;                   //Hub's ID is 0
   message[3] = 0;
 }
 
@@ -270,10 +280,10 @@ void loop() {
         Serial.print(message[1]);
         Serial.println(" is now off");
       }
-      if(message[4] == 2){         //if the lightsweitch is requesting a new ID number 
+      if(message[4] == NEEDID){         //if the lightswitch is requesting a new ID number 
           Lightswitch newL(Lstack.getNextid());     //create new lightswitch object 
           Lstack.push(newL);                        //and push it to the stack
-          sendMessage(255, newL.getID());             //send hub the new lightswitch number 
+          sendMessage(255, newL.getID());           //send hub the new lightswitch number 
           if(radio.available()){                    //if trhere is an incoming transmission
             radio.read(message, 5);                 //read 5 bytes into message variable
           }
@@ -281,8 +291,7 @@ void loop() {
           }         //then the light switch is on and working properly 
       }
     }
-    
-  }
+    }
 
 }
 

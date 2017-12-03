@@ -50,6 +50,8 @@ IRQ - Unused
 //Defines
 #define RELAY 6
 #define BUTTON 7
+#define HUB 0
+#define NEEDID 2
 #define OFF 10
 #define ON 11
 #define TOGGLE 12
@@ -91,12 +93,14 @@ Lightswitch::Lightswitch(){
 
 bool Lightswitch::initialize(){
      byte initialMsg[5];              //to hold message from the hub 
-     sendMessage(0, 2);    //send message, 0 sends to the hub and 2 requests a lightswitch number 
-     if (radio.available()){          //If there is an incoming transmission
-        radio.read(initialMsg, 5);    //Read 5 bytes and place into message array
-        ID = initialMsg[4];            //store ID number in the correct component 
-     }
-    return true;                      //return true to let the program know it was initialized sucessfully 
+     sendMessage(HUB, NEEDID);    //send message, 0 sends to the hub and 2 requests a lightswitch number 
+     while (!radio.available()){}
+     radio.read(initialMsg, 5);    //Read 5 bytes and place into message array
+     ID = initialMsg[4];            //store ID number in the correct component 
+     Serial.print("New ID is ");
+     Serial.println(ID);
+     sendMessage(0, 1);               //send message back to the hub to indicate everything is working properly
+     return true;                      //return true to let the program know it was initialized sucessfully 
 }
 
 //Varaibles
@@ -104,6 +108,7 @@ bool on = false;
 const uint64_t pipe = 0xF0F0F0F0E1LL;
 byte message[5];
 byte messageID;
+byte lastMsg;
 byte i;
 Lightswitch ls;
 
@@ -118,9 +123,9 @@ void setup() {
   radio.openReadingPipe(1, pipe);     //Tune to correct channel
   radio.startListening();             //Start listening to message broadcasts 
 
-unsigned long pressTime;              //variable to hold the time that the button was first pressed 
-unsigned long holdTime; 
-bool isInitial = false;               //boolean to hold the initialization state of the switch 
+  unsigned long pressTime;              //variable to hold the time that the button was first pressed 
+  unsigned long holdTime; 
+  bool isInitial = false;               //boolean to hold the initialization state of the switch 
 
   while(!isInitial){                    //if the lightswitch is not initialized enter this while loop 
     while(!digitalRead(BUTTON)){}         //while loop to wait until the button is pressed 
@@ -128,7 +133,10 @@ bool isInitial = false;               //boolean to hold the initialization state
         pressTime = millis();            //get the current time when the button is pressed 
         while(digitalRead(BUTTON)){}     //while loop for duration of the pressed button 
         holdTime = millis() - pressTime; //set the time that the button was pressed for
+        Serial.print("Held for ");
+        Serial.println(holdTime);
         if(holdTime > 3000){
+             Serial.println("Initializing");
              isInitial = ls.initialize();              
         }
       }
@@ -168,24 +176,34 @@ void loop() {
     messageID = message[0];
     
     //Recieved command
-    if (message[1] == 0 && message[2] == ls.getID()){ //If the message was from the hub
+    if (message[1] == HUB && message[2] == ls.getID()){ //If the message was from the hub
+      lastMsg = message[0] + 1;
       if (message[4] == ON){                          //and directed to this lightswitch
         on = true;                                    //Turn light on
         ls.setCurrentState(isON);
-        sendMessage(0, isON);
+        sendMessage(HUB, isON);
       }
       if (message[4] == OFF){
         on = false;                                   //Turn light off
         ls.setCurrentState(isOFF);
-        sendMessage(0, isOFF);
+        sendMessage(HUB, isOFF);
       }
       if (message[4] == TOGGLE){
         toggle();                                     //Toggle light
       }
       if (message[4] == 0){                           //Request from hub to see if lightswitch active
-        sendMessage(0, 1);                            //Respond yes
+        sendMessage(HUB, 1);                            //Respond yes
       }
     }
+    
+    //mesh networking 
+    if(message[2] != ls.getID()){                     //make sure that we are not supossed to be recieving the message 
+      if(lastMsg != message[0]){                    //this means the message has not been recieved yet 
+        lastMsg = message[0];                       //reset the last message ID so next time we know to ignore it 
+        sendMessage(message[1], message[4]);          //pass the message along 
+      }
+    }
+    
   }
 
   if (digitalRead(BUTTON) == HIGH){           //Freeze up the code while button is pressed 
@@ -206,11 +224,11 @@ void toggle(){
   if(on == true){
     on = false;
     ls.setCurrentState(isOFF);
-    sendMessage(0, isOFF);
+    sendMessage(HUB, isOFF);
   } else {
     on = true;
     ls.setCurrentState(isOFF);
-    sendMessage(0, isON);
+    sendMessage(HUB, isON);
   }
 }
 
