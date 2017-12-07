@@ -214,6 +214,7 @@ void loop() {
         Serial.println("Received command to revert to factory settings!");
         ls.setID(255);
         ls.setCurrentState(isOFF);
+        EEPROM.write(0, DEFAULTID);
         on = false;
         digitalWrite(RELAY, LOW);
         setupWait();       
