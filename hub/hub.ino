@@ -412,18 +412,18 @@ void doTimeoutCheck(){
   timeOutCheck = true;
   timeOutTries = 0;
 }
-
+//function that will factory reset the system 
 void resetFunction(){
   int inti;
   byte i;
   char letter;
   String typedmessage;
-  
+  //double check that the user actually wants to reset everything because all saved adata will be lost 
   Serial.println();
   Serial.println("MASTER RESET");
   Serial.println("All the lightswitches will need to be reinitialized.");
   Serial.print("Are you sure you want to do this? (Yes/No): ");
-
+  //read in input from the user 
   while (!Serial.available()){}
   i = 0;
   typedmessage = "";
@@ -434,7 +434,7 @@ void resetFunction(){
     i++;
     delay(10);
   }        
-
+  //if the user confirms the reset send a message to every light to master reset and delete all of the hubs EEPROM
   if (typedmessage.equalsIgnoreCase("yes")){
     Serial.println();
     Serial.println("Resetting. This will take a approximately 14 seconds...");
@@ -451,19 +451,19 @@ void resetFunction(){
     Serial.println("Error! - Improper input!");
   }
 }
-
+//function that will list all the light objects in the Stack
 void listFunction(){
   byte i;
   String lsName;
   
   Serial.println();
   Serial.println("Listing all Light Switches...");
-      
+  //first check for stack length and if its 0 tell the user     
   if (Lstack.getLength() == 0){
     Serial.println();
     Serial.println("No Light Switches exist");
   }
-      
+  //else loop through our list and print each switch out     
   for (i = 0; i < Lstack.getLength(); i++){
     Serial.println();
     Serial.print("ID: ");
@@ -491,7 +491,7 @@ void listFunction(){
   }
   Serial.println();
 }
-
+//function to rename one of our lights
 void renameFunction(){
   byte tempID, i;
   String typedmessage;
@@ -503,6 +503,7 @@ void renameFunction(){
   Serial.print("ID: ");
   while (!Serial.available()){}
   i = 0;
+  //read in the ID character by character 
   while (Serial.available() > 0 && i < 3){
     letter = Serial.read();
     Serial.print(letter);
@@ -511,7 +512,7 @@ void renameFunction(){
     delay(10);
   }        
   tempID = convertStringToByte(typedmessage);
-
+  //check for a valid ID number 
   if (tempID > Lstack.getLength()){
     Serial.println();
     Serial.print("Error! Light switch ID: ");
@@ -519,12 +520,13 @@ void renameFunction(){
     Serial.println(" does not exist!");
     return;
   }
-
+  //if ID is valid 
   typedmessage = "";    
   Serial.println();
   Serial.print("Name: ");
   while (!Serial.available()){}
   i = 0;
+  //read in new name letter by letter 
   while (Serial.available() > 0){
     letter = Serial.read();
     Serial.print(letter);
@@ -532,18 +534,19 @@ void renameFunction(){
     i++;
     delay(10);      
   }        
+  //change the name in the stack
   Lstack.changeName(tempID - 1, typedmessage);
-
+  //write the name into EEPROM memory to be stored in the case of a power outage 
   for (i = 0; i < 15 && i < typedmessage.length(); i++){
     EEPROM.write(207 + 16 * (int)(tempID - 1) + (int)i, typedmessage[i]);
   }
   EEPROM.write(207 + 16 * (int)(tempID - 1) + (int)i, '\n');
-
+  //let the user know the light was successfully renamed
   Serial.println();
   Serial.print("Successfully renamed light switch ID: ");
   Serial.println(tempID);
 }
-
+//this function is called when the user types send indicating that they want to remotely change the state of the light 
 void sendFunction(){
   String typedmessage;
   byte tempMessage;
@@ -555,6 +558,7 @@ void sendFunction(){
   Serial.print("Message: ");
   while (!Serial.available()){}
   i = 0;
+  //read in new operation that user wants to perform
   while (Serial.available() > 0 && i < 6){  //Longest message, toggle, is 6 characters long
     letter = Serial.read();
     Serial.print(letter);
@@ -562,32 +566,32 @@ void sendFunction(){
     i++;
     delay(10);
   }        
-  
+  //if the user typed on 
   if (typedmessage.equalsIgnoreCase("on")){
-    message[4] = ON;
-    isWord = 1;
+    message[4] = ON;            //store ON in messages data option
+    isWord = 1;                 //set word flag
   }
-
+  //if the user typed off 
   if (typedmessage.equalsIgnoreCase("off")){
-    message[4] = OFF;
-    isWord = 1;
+    message[4] = OFF;           //store OFF in messages data option
+    isWord = 1;                 //set word flag
   }
-
+  //if the user entered the toggle option
   if (typedmessage.equalsIgnoreCase("toggle")){
-    message[4] = TOGGLE;
-    isWord = 1;
+    message[4] = TOGGLE;        //set TOGGLE in message data option 
+    isWord = 1;                 //set word flag 
   }
-
+  //if our isWord flag is not set that means the user either entered a number command or an inccorect command
   if (isWord == 0){
-    if ((typedmessage.length() <= 3) && (debugMode == ON)){
-      message[4] = convertStringToByte(typedmessage);   
-    } else {
+    if ((typedmessage.length() <= 3) && (debugMode == ON)){   //if the length is over three its an invalid number command 
+      message[4] = convertStringToByte(typedmessage);         //if its less than three set our message data option to the value as a byte 
+    } else {                                                  //else this is not a valid command so we print an error to the user 
       Serial.println();
       Serial.println("Error! Invalid Message! Valid messages: on, off, toggle");
       return;
     }
   }
-
+  //get the light ID number from the user 
   typedmessage = "";    
   Serial.println();
   Serial.print("To: ");
@@ -600,13 +604,13 @@ void sendFunction(){
     i++;
     delay(10);      
   }        
-
+  //check if the user entered the all option 
   if (typedmessage.equalsIgnoreCase("all")){
     message[2] = ALL;
   } else {
     message[2] = convertStringToByte(typedmessage);
   }
-
+  //otherwise send our message to the light 
   Serial.println();
   if (((message[2] > Lstack.getLength()) && (message[2] != ALL)) && (debugMode == OFF)){ 
     Serial.print("Error! Light Switch ID: ");
